@@ -1,23 +1,45 @@
 package cn.doitedu.batch.jobs
 
 import ch.hsr.geohash.GeoHash
-import org.apache.hadoop.hbase.client.Put
+import org.apache.hadoop.hbase.client.{Put, Result}
 import org.apache.hadoop.hbase.io.ImmutableBytesWritable
+import org.apache.hadoop.hbase.mapreduce.TableOutputFormat
+import org.apache.hadoop.mapreduce.Job
+import org.apache.spark.SparkConf
 import org.apache.spark.sql.SparkSession
 
 import java.util.Properties
 
 object DataLoadJob01_GeoAreaInfo2Hbase {
   def main(args: Array[String]): Unit = {
+
+    val conf = new SparkConf()
+    conf.set("spark.sql.shuffle.partitions","1")
     val sparkSession = SparkSession.builder()
       .appName("gps地域维表etl任务")
       .master("local")
+      .config(conf)
       .getOrCreate()
+
+    val sc = sparkSession.sparkContext
+    // hbase 目标表名
+    val tableName = "dim_geo_area"
+
+    // hbase集群所连的zookeeper配置信息
+    sc.hadoopConfiguration.set("hbase.zookeeper.quorum", "doitedu")
+    sc.hadoopConfiguration.set("hbase.zookeeper.property.clientPort", "2181")
+    // 为sparkContext设置outputformat为hbase的TableOutputFormat
+    sc.hadoopConfiguration.set(TableOutputFormat.OUTPUT_TABLE, tableName)
+
+    // 封装mapreduce的Job配置信息
+    val job = Job.getInstance(sc.hadoopConfiguration)
+    job.setOutputKeyClass(classOf[ImmutableBytesWritable])
+    job.setOutputValueClass(classOf[Result])//下面的put是Result的子对象
+    job.setOutputFormatClass(classOf[TableOutputFormat[ImmutableBytesWritable]])
 
     val props = new Properties()
     props.setProperty("user","root")
     props.setProperty("password","root")
-
     val dataFrame = sparkSession.read.jdbc("jdbc:mysql://doitedu:3306/realtimedw", "t_md_areas", props)
 
     dataFrame.createTempView("t")
@@ -25,7 +47,6 @@ object DataLoadJob01_GeoAreaInfo2Hbase {
     val reverseGeoFunc = (lat:Double, lng:Double)=>{
       GeoHash.geoHashStringWithCharacterPrecision(lat,lng,5).reverse
     }
-
     sparkSession.udf.register("geo",reverseGeoFunc)
 
     val resDf = sparkSession.sql(
@@ -82,9 +103,5 @@ object DataLoadJob01_GeoAreaInfo2Hbase {
           }).saveAsNewAPIHadoopDataset(job.getConfiguration)
 
           sparkSession.close()
-
     }
-
-
-
 }
