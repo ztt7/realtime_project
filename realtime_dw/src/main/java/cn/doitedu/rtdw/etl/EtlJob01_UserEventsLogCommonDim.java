@@ -5,6 +5,7 @@ import com.alibaba.fastjson.JSON;
 import org.apache.flink.runtime.state.hashmap.HashMapStateBackend;
 import org.apache.flink.streaming.api.CheckpointingMode;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
+import org.apache.flink.table.api.TableResult;
 import org.apache.flink.table.api.bridge.java.StreamTableEnvironment;
 import org.apache.flink.table.functions.ScalarFunction;
 
@@ -120,6 +121,7 @@ public class EtlJob01_UserEventsLogCommonDim {
         tenv.executeSql("select * from wide_view").print();
 
 
+        System.out.println("---------------------- 写入 kafka ----------------------");
 
         /**
          * 将关联结果写出到外部存储
@@ -128,7 +130,7 @@ public class EtlJob01_UserEventsLogCommonDim {
          */
 
         // 建kafka连接器表，映射目标输出的topic
-        tenv.executeSql(
+        TableResult tableResult = tenv.executeSql(
                 " CREATE TABLE mall_events_wide_kafkasink(          "
                         + "     user_id           BIGINT,                         "
                         + "     username          string,                         "
@@ -158,8 +160,11 @@ public class EtlJob01_UserEventsLogCommonDim {
                         + "  'value.json.fail-on-missing-field'='false',        "
                         + "  'value.fields-include' = 'EXCEPT_KEY')             ");
 
+
+
         // 将关联好的宽表数据插入kafka
         tenv.executeSql("insert into mall_events_wide_kafkasink select * from wide_view");
+
 
 
         // 建doris连接器表，映射目标输出的doris表
@@ -192,7 +197,7 @@ public class EtlJob01_UserEventsLogCommonDim {
                         + "     page_service         VARCHAR(20)    "
                         + " ) WITH (                               "
                         + "    'connector' = 'doris',              "
-                        + "    'fenodes' = 'doitedu:8030',         "
+                        + "    'fenodes' = '192.168.10.88/:8030',         "
                         + "    'table.identifier' = 'dwd.mall_events_wide',  "
                         + "    'username' = 'root',                "
                         + "    'password' = '',                    "
