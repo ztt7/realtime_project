@@ -27,6 +27,8 @@ public class EtlJob01_UserEventsLogCommonDim {
         // 构造table编程环境
         StreamTableEnvironment tenv = StreamTableEnvironment.create(env);
 
+        System.out.println("---------------------- 开始 ----------------------");
+
         // 建kafka连接器的映射表，读取 kafka中的用户行为日志
         tenv.executeSql(
                 " CREATE TABLE mall_events_kafka_source (               "
@@ -118,10 +120,17 @@ public class EtlJob01_UserEventsLogCommonDim {
                         "LEFT JOIN dim_page_info_hbase_source FOR SYSTEM_TIME AS OF e.proc_time AS p ON regexp_extract(e.properties['url'],'(^.*/).*?') = p.url_prefix "
         );
 
-        tenv.executeSql("select * from wide_view").print();
+        try {
+            System.out.println("---------------------- 打印 ----------------------");
+            tenv.executeSql("select * from wide_view").print();
+        } catch (Exception e) {
+            throw new RuntimeException(e);
+        } finally {
+            System.out.println("---------------------- 写入 kafka ----------------------");
+        }
 
 
-        System.out.println("---------------------- 写入 kafka ----------------------");
+
 
         /**
          * 将关联结果写出到外部存储
@@ -130,111 +139,112 @@ public class EtlJob01_UserEventsLogCommonDim {
          */
 
         // 建kafka连接器表，映射目标输出的topic
-        TableResult tableResult = tenv.executeSql(
-                " CREATE TABLE mall_events_wide_kafkasink(          "
-                        + "     user_id           BIGINT,                         "
-                        + "     username          string,                         "
-                        + "     session_id        string,                         "
-                        + "     event_Id          string,                         "
-                        + "     event_time        bigint,                         "
-                        + "     lat               double,                         "
-                        + "     lng               double,                         "
-                        + "     release_channel   string,                         "
-                        + "     device_type       string,                         "
-                        + "     properties        map<string,string>,             "
-                        + "     register_phone    STRING,                         "
-                        + "     user_status       INT,                            "
-                        + "     register_time     TIMESTAMP(3),                   "
-                        + "     register_gender   INT,                            "
-                        + "     register_birthday DATE, register_province STRING, "
-                        + "     register_city STRING, register_job STRING, register_source_type INT,   "
-                        + "     gps_province   STRING, gps_city STRING, gps_region STRING,             "
-                        + "     page_type   STRING, page_service STRING         "
-                        + " ) WITH (                                            "
-                        + "  'connector' = 'kafka',                             "
-                        + "  'topic' = 'dwd-events-log',                      "
-                        + "  'properties.bootstrap.servers' = 'doitedu:9092',   "
-                        + "  'properties.group.id' = 'testGroup',               "
-                        + "  'scan.startup.mode' = 'earliest-offset',           "
-                        + "  'value.format'='json',                             "
-                        + "  'value.json.fail-on-missing-field'='false',        "
-                        + "  'value.fields-include' = 'EXCEPT_KEY')             ");
-
-
-
-        // 将关联好的宽表数据插入kafka
-        tenv.executeSql("insert into mall_events_wide_kafkasink select * from wide_view");
+//        tenv.executeSql(
+//                " CREATE TABLE mall_events_wide_kafkasink(          "
+//                        + "     user_id           BIGINT,                         "
+//                        + "     username          string,                         "
+//                        + "     session_id        string,                         "
+//                        + "     event_Id          string,                         "
+//                        + "     event_time        bigint,                         "
+//                        + "     lat               double,                         "
+//                        + "     lng               double,                         "
+//                        + "     release_channel   string,                         "
+//                        + "     device_type       string,                         "
+//                        + "     properties        map<string,string>,             "
+//                        + "     register_phone    STRING,                         "
+//                        + "     user_status       INT,                            "
+//                        + "     register_time     TIMESTAMP(3),                   "
+//                        + "     register_gender   INT,                            "
+//                        + "     register_birthday DATE, register_province STRING, "
+//                        + "     register_city STRING, register_job STRING, register_source_type INT,   "
+//                        + "     gps_province   STRING, gps_city STRING, gps_region STRING,             "
+//                        + "     page_type   STRING, page_service STRING         "
+//                        + " ) WITH (                                            "
+//                        + "  'connector' = 'kafka',                             "
+//                        + "  'topic' = 'dwd-events-log',                      "
+//                        + "  'properties.bootstrap.servers' = 'doitedu:9092',   "
+//                        + "  'properties.group.id' = 'testGroup',               "
+//                        + "  'scan.startup.mode' = 'earliest-offset',           "
+//                        + "  'value.format'='json',                             "
+//                        + "  'value.json.fail-on-missing-field'='false',        "
+//                        + "  'value.fields-include' = 'EXCEPT_KEY')             ");
+//
+//
+//
+//        // 将关联好的宽表数据插入kafka
+//        tenv.executeSql("insert into mall_events_wide_kafkasink select * from wide_view");
+//        tenv.executeSql("select * from mall_events_wide_kafkasink").print();
 
 
 
         // 建doris连接器表，映射目标输出的doris表
-        tenv.executeSql(
-                " CREATE TABLE mall_events_wide_doris_sink(         "
-                        + "     gps_province         VARCHAR(16),   "
-                        + "     gps_city             VARCHAR(16),   "
-                        + "     gps_region           VARCHAR(16),   "
-                        + "     dt                   DATE,          "
-                        + "     user_id              BIGINT,           "
-                        + "     username             VARCHAR(20),   "
-                        + "     session_id           VARCHAR(20),   "
-                        + "     event_id             VARCHAR(10),   "
-                        + "     event_time           bigint,        "
-                        + "     lat                  DOUBLE,        "
-                        + "     lng                  DOUBLE,        "
-                        + "     release_channel      VARCHAR(20),   "
-                        + "     device_type          VARCHAR(20),   "
-                        + "     properties           VARCHAR(40),   "
-                        + "     register_phone       VARCHAR(20),   "
-                        + "     user_status          INT,           "
-                        + "     register_time        TIMESTAMP(3),  "
-                        + "     register_gender      INT,           "
-                        + "     register_birthday    DATE,          "
-                        + "     register_province    VARCHAR(20),   "
-                        + "     register_city        VARCHAR(20),   "
-                        + "     register_job         VARCHAR(20),   "
-                        + "     register_source_type INT        ,   "
-                        + "     page_type            VARCHAR(20),   "
-                        + "     page_service         VARCHAR(20)    "
-                        + " ) WITH (                               "
-                        + "    'connector' = 'doris',              "
-                        + "    'fenodes' = '192.168.10.88/:8030',         "
-                        + "    'table.identifier' = 'dwd.mall_events_wide',  "
-                        + "    'username' = 'root',                "
-                        + "    'password' = '',                    "
-                        + "    'sink.label-prefix' = 'doris_label" + System.currentTimeMillis() + "'"
-                        + " )                                         "
-        );
-        // 将关联好的宽表数据插入doris
-        tenv.createTemporaryFunction("toJson", HashMap2Json.class);
-        tenv.executeSql("INSERT INTO mall_events_wide_doris_sink                                      "
-                + " SELECT                                                                         "
-                + "     gps_province         ,                                                     "
-                + "     gps_city             ,                                                     "
-                + "     gps_region           ,                                                     "
-                + "     TO_DATE(DATE_FORMAT(TO_TIMESTAMP_LTZ(event_time, 3),'yyyy-MM-dd')) as dt,  "
-                + "     user_id              ,                                                     "
-                + "     username             ,                                                     "
-                + "     session_id           ,                                                     "
-                + "     event_id             ,                                                     "
-                + "     event_time           ,                                                     "
-                + "     lat                  ,                                                     "
-                + "     lng                  ,                                                     "
-                + "     release_channel      ,                                                     "
-                + "     device_type          ,                                                     "
-                + "     toJson(properties) as properties     ,                                     "
-                + "     register_phone       ,                                                     "
-                + "     user_status          ,                                                     "
-                + "     register_time        ,                                                     "
-                + "     register_gender      ,                                                     "
-                + "     register_birthday    ,                                                     "
-                + "     register_province    ,                                                     "
-                + "     register_city        ,                                                     "
-                + "     register_job         ,                                                     "
-                + "     register_source_type ,                                                     "
-                + "     page_type            ,                                                     "
-                + "     page_service                                                               "
-                + " FROM   wide_view                                                               "
-        );
+//        tenv.executeSql(
+//                " CREATE TABLE mall_events_wide_doris_sink(         "
+//                        + "     gps_province         VARCHAR(16),   "
+//                        + "     gps_city             VARCHAR(16),   "
+//                        + "     gps_region           VARCHAR(16),   "
+//                        + "     dt                   DATE,          "
+//                        + "     user_id              BIGINT,           "
+//                        + "     username             VARCHAR(20),   "
+//                        + "     session_id           VARCHAR(20),   "
+//                        + "     event_id             VARCHAR(10),   "
+//                        + "     event_time           bigint,        "
+//                        + "     lat                  DOUBLE,        "
+//                        + "     lng                  DOUBLE,        "
+//                        + "     release_channel      VARCHAR(20),   "
+//                        + "     device_type          VARCHAR(20),   "
+//                        + "     properties           VARCHAR(40),   "
+//                        + "     register_phone       VARCHAR(20),   "
+//                        + "     user_status          INT,           "
+//                        + "     register_time        TIMESTAMP(3),  "
+//                        + "     register_gender      INT,           "
+//                        + "     register_birthday    DATE,          "
+//                        + "     register_province    VARCHAR(20),   "
+//                        + "     register_city        VARCHAR(20),   "
+//                        + "     register_job         VARCHAR(20),   "
+//                        + "     register_source_type INT        ,   "
+//                        + "     page_type            VARCHAR(20),   "
+//                        + "     page_service         VARCHAR(20)    "
+//                        + " ) WITH (                               "
+//                        + "    'connector' = 'doris',              "
+//                        + "    'fenodes' = '192.168.10.88/:8030',         "
+//                        + "    'table.identifier' = 'dwd.mall_events_wide',  "
+//                        + "    'username' = 'root',                "
+//                        + "    'password' = '',                    "
+//                        + "    'sink.label-prefix' = 'doris_label" + System.currentTimeMillis() + "'"
+//                        + " )                                         "
+//        );
+//        // 将关联好的宽表数据插入doris
+//        tenv.createTemporaryFunction("toJson", HashMap2Json.class);
+//        tenv.executeSql("INSERT INTO mall_events_wide_doris_sink                                      "
+//                + " SELECT                                                                         "
+//                + "     gps_province         ,                                                     "
+//                + "     gps_city             ,                                                     "
+//                + "     gps_region           ,                                                     "
+//                + "     TO_DATE(DATE_FORMAT(TO_TIMESTAMP_LTZ(event_time, 3),'yyyy-MM-dd')) as dt,  "
+//                + "     user_id              ,                                                     "
+//                + "     username             ,                                                     "
+//                + "     session_id           ,                                                     "
+//                + "     event_id             ,                                                     "
+//                + "     event_time           ,                                                     "
+//                + "     lat                  ,                                                     "
+//                + "     lng                  ,                                                     "
+//                + "     release_channel      ,                                                     "
+//                + "     device_type          ,                                                     "
+//                + "     toJson(properties) as properties     ,                                     "
+//                + "     register_phone       ,                                                     "
+//                + "     user_status          ,                                                     "
+//                + "     register_time        ,                                                     "
+//                + "     register_gender      ,                                                     "
+//                + "     register_birthday    ,                                                     "
+//                + "     register_province    ,                                                     "
+//                + "     register_city        ,                                                     "
+//                + "     register_job         ,                                                     "
+//                + "     register_source_type ,                                                     "
+//                + "     page_type            ,                                                     "
+//                + "     page_service                                                               "
+//                + " FROM   wide_view                                                               "
+//        );
     }
 
 
