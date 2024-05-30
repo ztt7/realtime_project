@@ -4,6 +4,7 @@ import ch.hsr.geohash.GeoHash;
 import com.alibaba.fastjson.JSON;
 import org.apache.flink.runtime.state.hashmap.HashMapStateBackend;
 import org.apache.flink.streaming.api.CheckpointingMode;
+import org.apache.flink.streaming.api.datastream.DataStream;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
 import org.apache.flink.table.api.TableResult;
 import org.apache.flink.table.api.bridge.java.StreamTableEnvironment;
@@ -23,6 +24,9 @@ public class EtlJob01_UserEventsLogCommonDim {
         env.setStateBackend(new HashMapStateBackend());
         env.enableCheckpointing(5000, CheckpointingMode.EXACTLY_ONCE);
         env.getCheckpointConfig().setCheckpointStorage("file:/e:/test_doitedu");
+
+
+
 
         // 构造table编程环境
         StreamTableEnvironment tenv = StreamTableEnvironment.create(env);
@@ -95,7 +99,10 @@ public class EtlJob01_UserEventsLogCommonDim {
 
         // 函数注册到元数据空间
         tenv.createTemporaryFunction("geo", GeoHashFunction.class);
+        String sqlQuery = "select 111111";
 
+
+//        tenv.executeSql("select 111111").print();
 
         /**
          * 日志数据关联公共维度的join语句
